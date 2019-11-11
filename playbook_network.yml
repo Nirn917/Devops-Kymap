@@ -1,0 +1,203 @@
+- hosts: localhost
+  vars:
+    region: eu-west-2
+    flavor: t2.micro
+    key: Key2
+    image: ami-0eab3a90fc693af19
+    vpc: vpc-bdf187d5
+  gather_facts: False
+
+  tasks:
+    - name: Create subnet for database servers
+      ec2_vpc_subnet:
+        state: present
+        region: "{{ vars.region }}"
+        vpc_id: "{{ vars.vpc }}"
+        cidr: 172.31.1.0/24
+        tags:
+          Name: Reseaux des BDD
+      register: database_subnet
+
+    - name: Create subnet for Application
+      ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vars.vpc }}"
+        region: "{{ vars.region }}"
+        cidr: 172.31.2.0/24
+        tags:
+          Name: Reseaux des apps
+      register: apps_subnet
+
+    - name: Create subnet for Web
+      ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vars.vpc }}"
+        region: "{{ vars.region }}"
+        cidr: 172.31.3.0/24
+        tags:
+          Name: Reseaux des srv web
+      register: web_subnet
+
+    - name: Create subnet Admin
+      ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vars.vpc }}"
+        region: "{{ vars.region }}"
+        cidr: 172.31.0.0/24
+        tags:
+          Name: Reseaux Admin
+      register: admin_subnet
+
+    - name: SG Admin
+      ec2_group:
+        name: "SG Admin"
+        description: sg Adminstration
+        vpc_id: "{{ vars.vpc }}"
+        region: "{{ vars.region }}"
+        rules:
+          - proto: tcp
+            ports:
+            - 22
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 22
+      register: sg_admin
+
+    - name: SG Web
+      ec2_group:
+        name: "SG Web"
+        description: sg serveur Web
+        vpc_id: "{{ vars.vpc }}"
+        region: "{{ vars.region }}"
+        rules:
+          - proto: tcp
+            ports:
+            - 80
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 80
+          - proto: tcp
+            ports:
+            - 22
+            group_id: "{{ sg_admin.group_id }}"
+            rule_desc: allow all on port 22
+      register: sg_web
+
+    - name: SG App
+      ec2_group:
+          name: "SG App"
+          description: sg Application
+          vpc_id: "{{ vars.vpc }}"
+          region: "{{ vars.region }}"
+          rules:
+            - proto: tcp
+              ports:
+              - 8008
+              cidr_ip: 0.0.0.0/0
+              rule_desc: allow all on port 8008
+            - proto: tcp
+              ports:
+              - 22
+              group_id: "{{ sg_admin.group_id }}"
+              rule_desc: allow all on port 22
+      register: sg_app
+
+    - name: SG BDD
+      ec2_group:
+          name: "SG BDD"
+          description: sg bdd
+          vpc_id: "{{ vars.vpc }}"
+          region: "{{ vars.region }}"
+          rules:
+            - proto: tcp
+              ports:
+              - 5432
+              group_id: "{{ sg_web.group_id }}"
+              rule_desc: allow all on port 5432
+            - proto: tcp
+              ports:
+              - 5432
+              group_id: "{{ sg_app.group_id }}"
+              rule_desc: allow all on port 5432
+            - proto: tcp
+              ports:
+              - 5432
+              cidr: 172.31.1.0/24
+              rule_desc: allow all on port 5432
+            - proto: tcp
+              ports:
+              - 22
+              group_id: "{{ sg_admin.group_id }}"
+              rule_desc: allow all on port 22
+      register: sg_bdd
+
+    - name: Create Administration VM
+      ec2:
+        key_name: "{{ vars.key }}"
+        instance_type: "{{ vars.flavor }}"
+        image: "{{ vars.image }}"
+        region: "{{ vars.region }}"
+        wait: yes
+        group_id: "{{ sg_admin.group_id }}" 
+        count: 1
+        vpc_subnet_id: "{{admin_subnet.subnet.id}}"
+        assign_public_ip: yes
+    
+    - name: Create database VM
+      ec2:
+        key_name: "{{ vars.key }}"
+        instance_type: "{{ vars.flavor }}"
+        image: "{{ vars.image }}"
+        region: "{{ vars.region }}"
+        wait: yes
+        group_id: "{{ sg_bdd.group_id }}" 
+        count: 2
+        vpc_subnet_id: "{{database_subnet.subnet.id}}"
+        instance_tags:
+          type: srvBdd
+        assign_public_ip: no
+
+    - name: Create App VM
+      ec2:
+        key_name: "{{ vars.key }}"
+        instance_type: "{{ vars.flavor }}"
+        image: "{{ vars.image }}"
+        region: "{{ vars.region }}"
+        wait: yes
+        group_id: "{{ sg_app.group_id }}" 
+        count: 2
+        vpc_subnet_id: "{{apps_subnet.subnet.id}}"
+        instance_tags:
+          type: srvApp
+        assign_public_ip: no
+
+    - name: Create Web VM
+      ec2:
+        key_name: "{{ vars.key }}"
+        instance_type: "{{ vars.flavor }}"
+        image: "{{ vars.image }}"
+        region: "{{ vars.region }}"
+        wait: yes
+        group_id: "{{ sg_web.group_id }}" 
+        count: 2
+        vpc_subnet_id: "{{web_subnet.subnet.id}}"
+        assign_public_ip: yes
+        instance_tags: 
+          type: srvWeb
+      register: web_vm
+
+    - name: create target group web
+      elb_target_group:
+        name: TargetWeb
+        protocol: http
+        port: 80
+        vpc_id: "{{ vars.vpc }}"
+        health_check_path: /
+        successful_response_codes: "200,250-260"
+        targets:
+          - Id: "{{ web_vm.instance_ids[0] }}"
+            Port: 80
+          - Id: "{{ web_vm.instance_ids[1] }}"
+            Port: 80
+        state: present
+        region: "{{ vars.region }}"
+        wait_timeout: 200
+        wait: True

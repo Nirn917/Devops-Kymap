@@ -1,0 +1,115 @@
+- hosts: localhost
+  vars:
+    region: eu-west-3
+  gather_facts: False
+
+  tasks:
+    - name: Delete subnet for database servers
+      ec2_vpc_subnet:
+        state: absent
+        region: "{{ vars.region }}"
+        vpc_id: vpc-5bc0c032
+        cidr: 172.31.1.0/24
+        tags:
+          Name: Reseaux des BDD
+      register: database_subnet
+
+    - name: Delete subnet for Application
+      ec2_vpc_subnet:
+        state: absent
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+        cidr: 172.31.2.0/24
+        tags:
+          Name: Reseaux des apps
+      register: apps_subnet
+
+    - name: Delete subnet for Web
+      ec2_vpc_subnet:
+        state: absent
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+        cidr: 172.31.3.0/24
+        tags:
+          Name: Reseaux des srv web
+      register: web_subnet
+
+    - name: Delete subnet Admin
+      ec2_vpc_subnet:
+        state: absent
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+        cidr: 172.31.0.0/24
+        tags:
+          Name: Reseaux Admin
+      register: admin_subnet
+
+
+    - name: SG Admin
+      ec2_group:
+        name: "SG Admin"
+        purge_rules: yes
+        description: sg Adminstration
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+      register: sg_admin
+
+    - name: SG Web
+      ec2_group:
+        name: "SG Web"
+        purge_rules: yes
+        description: sg serveur Web
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+      register: sg_web
+
+    - name: SG App
+      ec2_group:
+          name: "SG App"
+          description: sg Application
+          vpc_id: vpc-5bc0c032
+          region: "{{ vars.region }}"
+          purge_rules: yes
+      register: sg_app
+
+    - name: SG BDD
+      ec2_group:
+          name: "SG BDD"
+          vpc_id: vpc-5bc0c032
+          description: sg bdd
+          region: "{{ vars.region }}"
+          purge_rules: yes
+      register: sg_bdd
+
+    - name: SG Admin
+      ec2_group:
+        name: "SG Admin"
+        state: absent
+        group_id: "{{ sg_admin.group_id }}"
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+
+    - name: SG Web
+      ec2_group:
+        name: "SG Web"
+        state: absent
+        group_id: "{{ sg_web.group_id }}"
+        vpc_id: vpc-5bc0c032
+        region: "{{ vars.region }}"
+
+    - name: SG App
+      ec2_group:
+          name: "SG App"
+          group_id: "{{ sg_app.group_id }}"
+          vpc_id: vpc-5bc0c032
+          region: "{{ vars.region }}"
+          state: absent
+
+    - name: SG BDD
+      ec2_group:
+          name: "SG BDD"
+          group_id: "{{ sg_bdd.group_id }}"
+          vpc_id: vpc-5bc0c032
+          region: "{{ vars.region }}"
+          state: absent
+          

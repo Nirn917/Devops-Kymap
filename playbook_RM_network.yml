@@ -1,6 +1,6 @@
 - hosts: localhost
   vars:
-    region: eu-west-3
+    region: eu-west-2
   gather_facts: False
 
   tasks:

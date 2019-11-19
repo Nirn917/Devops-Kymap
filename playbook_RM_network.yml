@@ -1,14 +1,49 @@
 - hosts: localhost
   vars:
     region: eu-west-2
+    vpc: vpc-bdf187d5
   gather_facts: False
 
   tasks:
+    - name: Info Web
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvAdmin
+      register: srv_Admin
+
+    - name: Info Web
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvWeb
+      register: srv_web
+    
+    - name: Info App
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvApp
+      register: srv_app
+    
+    - name: Info BDD
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvBdd
+      register: srv_bdd
+    
+    - name: Delete VM
+      ec2:
+        state: absent
+        instance_ids: "{{ hostvars[groups['launched'][0]]['instance_id'] }}"
+
+
     - name: Delete subnet for database servers
       ec2_vpc_subnet:
         state: absent
         region: "{{ vars.region }}"
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         cidr: 172.31.1.0/24
         tags:
           Name: Reseaux des BDD
@@ -17,7 +52,7 @@
     - name: Delete subnet for Application
       ec2_vpc_subnet:
         state: absent
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
         cidr: 172.31.2.0/24
         tags:
@@ -27,7 +62,7 @@
     - name: Delete subnet for Web
       ec2_vpc_subnet:
         state: absent
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
         cidr: 172.31.3.0/24
         tags:
@@ -37,7 +72,7 @@
     - name: Delete subnet Admin
       ec2_vpc_subnet:
         state: absent
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
         cidr: 172.31.0.0/24
         tags:
@@ -50,7 +85,7 @@
         name: "SG Admin"
         purge_rules: yes
         description: sg Adminstration
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
       register: sg_admin
 
@@ -59,7 +94,7 @@
         name: "SG Web"
         purge_rules: yes
         description: sg serveur Web
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
       register: sg_web
 
@@ -67,7 +102,7 @@
       ec2_group:
           name: "SG App"
           description: sg Application
-          vpc_id: vpc-5bc0c032
+          vpc_id: "{{ vars.vpc }}"
           region: "{{ vars.region }}"
           purge_rules: yes
       register: sg_app
@@ -75,7 +110,7 @@
     - name: SG BDD
       ec2_group:
           name: "SG BDD"
-          vpc_id: vpc-5bc0c032
+          vpc_id: "{{ vars.vpc }}"
           description: sg bdd
           region: "{{ vars.region }}"
           purge_rules: yes
@@ -86,7 +121,7 @@
         name: "SG Admin"
         state: absent
         group_id: "{{ sg_admin.group_id }}"
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
 
     - name: SG Web
@@ -94,14 +129,14 @@
         name: "SG Web"
         state: absent
         group_id: "{{ sg_web.group_id }}"
-        vpc_id: vpc-5bc0c032
+        vpc_id: "{{ vars.vpc }}"
         region: "{{ vars.region }}"
 
     - name: SG App
       ec2_group:
           name: "SG App"
           group_id: "{{ sg_app.group_id }}"
-          vpc_id: vpc-5bc0c032
+          vpc_id: "{{ vars.vpc }}"
           region: "{{ vars.region }}"
           state: absent
 
@@ -109,7 +144,7 @@
       ec2_group:
           name: "SG BDD"
           group_id: "{{ sg_bdd.group_id }}"
-          vpc_id: vpc-5bc0c032
+          vpc_id: "{{ vars.vpc }}"
           region: "{{ vars.region }}"
           state: absent
           

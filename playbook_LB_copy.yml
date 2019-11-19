@@ -1,0 +1,118 @@
+- hosts: localhost
+  vars:
+    region: eu-west-2
+    flavor: t2.micro
+    key: Key2
+    image: ami-0eab3a90fc693af19
+    vpc: vpc-bdf187d5
+  gather_facts: False
+
+  tasks:
+    - name: Info Web
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvWeb
+      register: srv_web
+    
+    - name: Info App
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvApp
+      register: srv_app
+    
+    - name: Info BDD
+      ec2_instance_facts:
+        region: "{{ vars.region }}"
+        filters:
+          "tag:type": srvBdd
+      register: srv_bdd
+    
+    - name: create target group web
+      elb_target_group:
+        name: TargetWeb
+        protocol: TCP
+        port: 80
+        vpc_id: "{{ vars.vpc }}"
+        targets:
+          - Id: "{{ srv_web.instances[0].instance_id }}"
+            Port: 80
+          - Id: "{{ srv_web.instances[1].instance_id }}"
+            Port: 80
+        state: present
+        region: "{{ vars.region }}"
+      register: web_target
+    
+    - name: Create network LB Web
+      elb_network_lb:
+        name: lbWeb
+        region: "{{ vars.region }}"
+        subnets:
+          - "{{ srv_web.instances[0].network_interfaces[0].subnet_id }}"
+        listeners:
+          - Protocol: TCP 
+            Port: 80 
+            DefaultActions:
+              - Type: forward 
+                TargetGroupName: TargetWeb 
+        state: present
+      
+    - name: create target group app
+      elb_target_group:
+        name: TargetApp
+        protocol: TCP
+        port: 8008
+        vpc_id: "{{ vars.vpc }}"
+        targets:
+          - Id: "{{ srv_app.instances[0].instance_id }}"
+            Port: 8008
+          - Id: "{{ srv_app.instances[1].instance_id }}"
+            Port: 8008
+        state: present
+        region: "{{ vars.region }}"
+      register: app_target
+
+    - name: Create network LB App
+      elb_network_lb:
+        name: lbApp
+        region: "{{ vars.region }}"
+        subnets:
+          - "{{ srv_app.instances[0].network_interfaces[0].subnet_id }}"
+        listeners:
+          - Protocol: TCP 
+            Port: 8008
+            DefaultActions:
+              - Type: forward 
+                TargetGroupName: TargetApp 
+        state: present
+    
+    - name: create target group bdd
+      elb_target_group:
+        name: Targetbdd
+        protocol: TCP
+        port: 5432
+        vpc_id: "{{ vars.vpc }}"
+        targets:
+          - Id: "{{ srv_bdd.instances[0].instance_id }}"
+            Port: 5432
+          - Id: "{{ srv_bdd.instances[1].instance_id }}"
+            Port: 5432
+        state: present
+        region: "{{ vars.region }}"
+      register: bdd_target
+
+    - name: Create network LB BDD
+      elb_network_lb:
+        name: lbBdd
+        scheme: internal
+        region: "{{ vars.region }}"
+        subnets:
+          - "{{ srv_bdd.instances[0].network_interfaces[0].subnet_id }}"
+        listeners:
+          - Protocol: TCP 
+            Port: 5432
+            DefaultActions:
+              - Type: forward 
+                TargetGroupName: Targetbdd 
+        state: present

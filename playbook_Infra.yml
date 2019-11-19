@@ -139,6 +139,8 @@
         group_id: "{{ sg_admin.group_id }}" 
         count: 1
         vpc_subnet_id: "{{admin_subnet.subnet.id}}"
+        instance_tags:
+          type: srvAdmin
         assign_public_ip: yes
     
     - name: Create database VM

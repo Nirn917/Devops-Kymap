@@ -1,0 +1,10 @@
+{
+    "ansible.fileCopyConfig": [
+        {
+            "server": "192.168.92.128",
+            "sourcePath": "c:\\Users\\yadma\\OneDrive - Efrei\\Projet Devops\\Ansible\\Devops-Kymap/",
+            "targetPath": "NotShowThisAgain",
+            "copyOnSave": true
+        }
+    ]
+}
